@@ -17,16 +17,21 @@
 - Calculate **Beta** and **Expected Returns**
 - Analyze stock risk vs market
 - Interactive price performance charts
+<img width="1470" height="956" alt="Screenshot 2025-07-15 at 10 10 42 AM" src="https://github.com/user-attachments/assets/243a108a-c1d4-4a83-a2b1-dd667f632cc9" />
 
 ### 📉 Stock Analysis
 - Technical indicators
 - Volume and trend analysis
 - Moving averages & historical insights
+<img width="1470" height="956" alt="Screenshot 2025-07-15 at 10 10 16 AM" src="https://github.com/user-attachments/assets/9a07afbe-b4cf-4ccb-9e16-b3b36fdb2c9a" />
+<img width="1470" height="956" alt="Screenshot 2025-07-15 at 10 10 29 AM" src="https://github.com/user-attachments/assets/68045c63-cf5f-40aa-b953-a6200245d7f1" />
+
 
 ### 📈 Stock Prediction
 - Forecast next 30 days using **ARIMA**
 - Interactive charts of predicted vs historical prices
 - Search by **stock ticker or company name**
+<img width="1470" height="956" alt="Screenshot 2025-07-15 at 10 05 29 AM" src="https://github.com/user-attachments/assets/128f2d46-3137-4339-b631-921f917ba223" />
 
 ---
 
