@@ -76,7 +76,7 @@ st.markdown(
     """
     <hr style='margin-top:2em; margin-bottom:1em; border-color:#444;'>
     <div style='text-align:center; color:#888; font-size:0.95em;'>
-        Made with ❤️  by PARLE | <a href='https://github.com/your-repo' style='color:#4F8BF9;'>GitHub</a>
+        Made with ❤️  by PARLE | <a href='https://github.com/AkashParley/Stocklyzer' style='color:#4F8BF9;'>GitHub</a>
     </div>
     """,
     unsafe_allow_html=True
