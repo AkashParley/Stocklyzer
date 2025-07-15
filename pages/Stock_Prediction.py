@@ -1,8 +1,5 @@
 import streamlit as st
 import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.model_train import get_data, get_rolling_mean, get_differencing_order, evaluate_model, scaling, get_forecast, inverse_scaling
-from utils.ploty_figure import plotly_table, Moving_average_forecast
 import pandas as pd
 import plotly.graph_objects as go
 import yfinance as yf
@@ -11,6 +8,158 @@ from statsmodels.tsa.arima.model import ARIMA
 from datetime import datetime, timedelta
 import numpy as np
 import requests
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import StandardScaler
+
+# --- Functions from utils/model_train.py ---
+def get_data(ticker):
+    """Get stock data from Yahoo Finance"""
+    stock_data = yf.download(ticker, start='2020-01-01')
+    return stock_data[['Close']]  # This is a DataFrame with one column
+
+def stationary_check(close_price):
+    """Check if the time series is stationary using ADF test"""
+    adf_test = adfuller(close_price.dropna())
+    p_value = round(adf_test[1], 3)
+    return p_value
+
+def get_rolling_mean(close_price):
+    """Calculate 7-day rolling mean of closing prices"""
+    # Ensure we are working with a Series
+    if isinstance(close_price, pd.DataFrame):
+        close_price = close_price['Close']
+    rolling_price = close_price.rolling(window=7).mean().dropna()
+    # Only convert to DataFrame if it's NOT already a DataFrame
+    if not isinstance(rolling_price, pd.DataFrame):
+        rolling_price = rolling_price.to_frame(name='Close')
+    return rolling_price
+
+def get_differencing_order(close_price):
+    """Determine optimal differencing order for stationarity"""
+    p_value = stationary_check(close_price)
+    d = 0
+    while p_value > 0.05 and d < 2:
+        d += 1
+        close_price = close_price.diff().dropna()
+        p_value = stationary_check(close_price)
+    return d
+
+def fit_model(data, differencing_order):
+    """Fit ARIMA model and generate forecasts"""
+    model = ARIMA(data, order=(5, differencing_order, 1))
+    model_fit = model.fit()
+    forecast = model_fit.get_forecast(steps=30)
+    return forecast.predicted_mean
+
+def evaluate_model(original_price, differencing_order):
+    """Evaluate ARIMA model using RMSE on test data"""
+    train_data = original_price[:-30]
+    test_data = original_price[-30:]
+    predictions = fit_model(train_data, differencing_order)
+    rmse = np.sqrt(mean_squared_error(test_data, predictions))
+    return round(rmse, 2)
+
+def scaling(close_price):
+    """Scale the data using StandardScaler"""
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(np.array(close_price).reshape(-1, 1))
+    return scaled_data, scaler
+
+def get_forecast(scaled_data, original_price_df, differencing_order):
+    model = ARIMA(scaled_data, order=(5, differencing_order, 1))
+    model_fit = model.fit()
+    forecast_steps = 30
+    forecast = model_fit.get_forecast(steps=forecast_steps)
+    predictions = forecast.predicted_mean
+    last_date = original_price_df.index[-1]
+    forecast_index = pd.date_range(start=last_date + timedelta(days=1), periods=forecast_steps, freq='D')
+    forecast_df = pd.DataFrame(predictions, index=forecast_index, columns=['Close'])
+    return forecast_df
+
+def inverse_scaling(scaler, scaled_data):
+    """
+    Inverse transform scaled data back to original scale.
+    """
+    if isinstance(scaled_data, (pd.Series, pd.DataFrame)):
+        scaled_data = scaled_data.values
+    return scaler.inverse_transform(np.array(scaled_data).reshape(-1, 1))
+
+# --- Functions from utils/ploty_figure.py ---
+def plotly_table(dataframe):
+    headerColor = '#0078ff'
+    rowEvenColor = '#f8fafd'
+    rowOddColor = '#e1efff'
+    # Prepare header and cell values
+    header_values = ["<b>Index</b>"] + ["<b>" + str(col)[:10] + "</b>" for col in dataframe.columns]
+    cell_values = [[str(i) for i in dataframe.index]] + [dataframe[col].tolist() for col in dataframe.columns]
+    # Alternate row colors
+    n_rows = len(dataframe)
+    fill_colors = []
+    for i in range(n_rows):
+        fill_colors.append(rowEvenColor if i % 2 == 0 else rowOddColor)
+    fig = go.Figure(data=[go.Table(
+        header=dict(
+            values=header_values,
+            line_color=headerColor,
+            fill_color=headerColor,
+            align='center',
+            font=dict(color='black', size=15),
+            height=35
+        ),
+        cells=dict(
+            values=cell_values,
+            fill_color=[fill_colors] * (len(dataframe.columns) + 1),
+            align='left',
+            line_color='white',
+            font=dict(color="black", size=15)
+        )
+    )])
+    fig.update_layout(height=400, margin=dict(l=0, r=0, t=0, b=0))
+    return fig
+
+def Moving_average_forecast(historical, forecast):
+    fig = go.Figure()
+    # Plot historical line (black)
+    if len(historical) > 0:
+        fig.add_trace(go.Scatter(
+            x=historical.index,
+            y=historical['Close'],
+            mode='lines',
+            name='Close Price',
+            line=dict(width=3, color='black')
+        ))
+    # Plot forecast line (red)
+    if len(forecast) > 0:
+        fig.add_trace(go.Scatter(
+            x=forecast.index,
+            y=forecast['Close'],
+            mode='lines',
+            name='Future Close Price',
+            line=dict(width=3, color='red')
+        ))
+    fig.update_xaxes(rangeslider_visible=True, color='black', tickfont=dict(color='black'), title_font=dict(color='black'))
+    fig.update_yaxes(color='black', tickfont=dict(color='black'), title_font=dict(color='black'))
+    fig.update_layout(
+        title=dict(text="Stock Price Forecast", font=dict(color='black')),
+        xaxis_title="Date",
+        yaxis_title="Price",
+        height=500,
+        margin=dict(l=0, r=20, t=40, b=0),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(color='black'),
+        legend=dict(
+            yanchor="top",
+            xanchor="right",
+            bgcolor='rgba(255,255,255,0.8)',
+            bordercolor='black',
+            borderwidth=1,
+            font=dict(color='black')
+        )
+    )
+    return fig
+
+# --- Rest of your Stock_Prediction.py code below (unchanged) ---
 
 @st.cache_data
 def search_stocks(query):
@@ -34,10 +183,7 @@ def search_stocks(query):
 
 st.set_page_config(page_title="Stock Prediction", page_icon=":chart_with_upwards_trend:", layout="wide")
 
-
-
 st.title("Stock Prediction")
-
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -109,7 +255,6 @@ if isinstance(combined_data.columns, pd.MultiIndex):
 st.text(f"Combined data columns: {list(combined_data.columns)}")
 
 # Use the correct column name for plotting
-# Use the correct column name for plotting
 for col in combined_data.columns:
     if 'Close' in str(col):
         close_col = col
@@ -128,9 +273,6 @@ st.write("Rolling price index tail:", rolling_price.index[-5:])
 st.write("Forecast index head:", forecast.index[:5])
 st.write("Forecast index tail:", forecast.index[-5:])
 st.write("Rolling price columns:", list(rolling_price.columns))
-
-# Pass the correct column to the plotting function
-
 
 # After combining and deduplicating
 combined_data['Close'] = pd.to_numeric(combined_data['Close'], errors='coerce')
