@@ -110,10 +110,10 @@ try:
     #for displaying 
     col1, col2 = st.columns([1,1])
     with col1:
-        st.markdown("### DataFrame head")
+        st.markdown("### Opening Price")
         st.dataframe(stocks_df.head(),use_container_width=True)
     with col2:
-        st.markdown("### DataFrame tail")
+        st.markdown("### Closing Price")
         st.dataframe(stocks_df.tail(),use_container_width=True)
 
     col1, col2 = st.columns([1,1])
